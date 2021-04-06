@@ -34,57 +34,58 @@ app = Flask(__name__)
 # Flask Routes
 #################################################
 
+
 @app.route("/")
-def welcome():
-    return (
-        f" The Hawaii Climate Analysis API!<br/>"
-        f"Available Routes:<br/>"
-        f"/api/v1.0/precipitation<br/>"
-        f"/api/v1.0/stations<br/>"
-        f"/api/v1.0/tobs<br/>"
-        f"/api/v1.0/temp/start/end"
-    )
-@app.route("/")
-def welcome():
+def Home():
     return (
         f"The Hawaii Climate Analysis API!<br/>"
-        f"Available Routes:<br/>"
+        f"List of available routes:<br/>"
         f"/api/v1.0/precipitation<br/>"
         f"/api/v1.0/stations<br/>"
         f"/api/v1.0/tobs<br/>"
         f"/api/v1.0/temp/start/end"
     )
+ @app.route("/api/v1.0/precipitation")
+def precipitation():
+    # Calculate the date 1 year ago from last date in database
+    one_year_ago = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+
+    # Query prior year precipitation
+    precipitation = session.query(Measurement.date, Measurement.prcp).\
+        filter(Measurement.date >= one_year_ago).all()
+
+    # Return the JSON representation of the dictionary.
+    precip = {date: prcp for date, prcp in precipitation}
+    return jsonify(precip)   
+
 @app.route("/api/v1.0/stations")
 def stations():
-    """Return a list of stations."""
     results = session.query(Station.station).all()
 
-    # Unravel results into a 1D array and convert to a list
+    #Return a JSON list of stations from the dataset.
     stations = list(np.ravel(results))
     return jsonify(stations=stations)
 
-
+#Query the dates and temperature observations of the most active station for the last year of data.
 @app.route("/api/v1.0/tobs")
-def temp_monthly():
-    """Return the temperature observations (tobs) for previous year."""
-    # Calculate the date 1 year ago from last date in database
-    prev_year = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+def tobs():
+    # Calculate the date 1 year ago from last date in dataset
+    one_year_ago = dt.date(2017, 8, 23) - dt.timedelta(days=365)
 
     # Query the primary station for all tobs from the last year
     results = session.query(Measurement.tobs).\
         filter(Measurement.station == 'USC00519281').\
-        filter(Measurement.date >= prev_year).all()
+        filter(Measurement.date >= one_year_ago).all()
 
-    # Unravel results into a 1D array and convert to a list
+    # Unravel and convert results  to a list
     temps = list(np.ravel(results))
 
-    # Return the results
+    # Return a JSON list of temperature observations for the previous year.
     return jsonify(temps=temps) 
-    
+
 @app.route("/api/v1.0/temp/<start>")
 @app.route("/api/v1.0/temp/<start>/<end>")
 def stats(start=None, end=None):
-    """Return TMIN, TAVG, TMAX."""
 
     # Select statement
     sel = [func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)]
@@ -101,6 +102,7 @@ def stats(start=None, end=None):
     results = session.query(*sel).\
         filter(Measurement.date >= start).\
         filter(Measurement.date <= end).all()
+
     # Unravel results into a 1D array and convert to a list
     temps = list(np.ravel(results))
     return jsonify(temps=temps)   
